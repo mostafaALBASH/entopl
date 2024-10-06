@@ -1,10 +1,13 @@
+<!DOCTYPE html>
+<html lang="en">
+
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Eng to PL App</title>
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/preact@10.5.13/dist/preact.min.js"></script>
-  <script src="https://unpkg.com/preact@10.5.13/hooks/dist/hooks.umd.js"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <style>
     body {
       padding: 1rem;
@@ -44,301 +47,206 @@
   </style>
 </head>
 
-<body class="bg-gray-100 min-h-screen flex flex-col items-center">
-  <div id="app" class="text-center w-full max-w-md mx-auto"></div>
-  <script>
-    const { h, render } = preact;
-    const { useState, useEffect } = preactHooks;
-    function Home() {
-      const [data, setData] = useState([]);
-      const [jsonData, setJsonData] = useState([]);
-      const [currentRow, setCurrentRow] = useState(0);
-      const [isPlaying, setIsPlaying] = useState(false);
-      const [isSpeaking, setIsSpeaking] = useState(false);
-      const [isPaused, setIsPaused] = useState(false);
-      const [selectedLetter, setSelectedLetter] = useState("");
-      const [lettersDisabled, setLettersDisabled] = useState(false);
-      const [filteredData, setFilteredData] = useState([]);
-      const [currentPage, setCurrentPage] = useState(0);
-      const pageSize = 10;
-      const polishLetters = ["a", "ą", "b", "c", "ć", "d", "e", "ę", "f", "g", "h", "i", "j", "k", "l", "ł", "m", "n", "ń", "o", "ó", "p", "r", "s", "ś", "t", "u", "w", "y", "z", "ź", "ż"];
-      const [num1, setNum1] = useState('');
-      const [num2, setNum2] = useState('');
-      const [formError, setFormError] = useState('');
-      const [localData, setLocalData] = useState([]);
-
-      useEffect(() => {
-        const storedData = localStorage.getItem("learnablesData");
-        if (storedData) {
-          const parsedData = JSON.parse(storedData);
-          setJsonData(parsedData);
-          setLocalData(parsedData);
-        } else {
-          fetch("learnables.json")
-            .then((response) => response.json())
-            .then((jsonData) => {
-              localStorage.setItem("learnablesData", JSON.stringify(jsonData));
-              setJsonData(jsonData);
-              setLocalData(jsonData);
-            })
-            .catch((err) => console.error("Error fetching data:", err));
-        }
-      }, []);
-
-      const handleCheckboxChange = (index, learnableId, checked) => {
-        const updatedData = localData.map((item, i) => {
-          if (item.learnableId === learnableId) {
-            return { ...item, active: checked };
-          }
-          return item;
-        });
-        setLocalData(updatedData);
-        localStorage.setItem("learnablesData", JSON.stringify(updatedData));
-      };
-
-      const fetchNextPage = () => {
-        if (isPaused || !isPlaying) return;
-        const start = currentPage * pageSize;
-        const nextPageData = filteredData.slice(start, start + pageSize);
-        if (nextPageData.length > 0) {
-          setData(nextPageData);
-          setCurrentRow(0);
-          setCurrentPage((prevPage) => prevPage + 1);
-        } else {
-          setCurrentPage(1);
-          setCurrentRow(0);
-          setData(filteredData.slice(0, pageSize));
-        }
-      };
-
-      useEffect(() => {
-        if (isPlaying && !isSpeaking && !isPaused) {
-          if (currentRow < data.length) {
-            speakRow(currentRow);
-          } else if (currentPage * pageSize >= filteredData.length) {
-            setCurrentPage(1);
-            setCurrentRow(0);
-            setData(filteredData.slice(0, pageSize));
-          } else {
-            fetchNextPage();
-          }
-        }
-      }, [isPlaying, currentRow, data, isSpeaking, isPaused]);
-
-      const speakRow = (index) => {
-        const item = data[index];
-        if (item) {
-          setIsSpeaking(true);
-          // Speak English first
-          responsiveVoice.speak(item.sourceValue, "UK English Male", {
-            onend: () => {
-              if (!isPaused) {
-                // Then speak Polish
-                responsiveVoice.speak(item.targetValue, "Polish Female", {
-                  onend: () => {
-                    if (!isPaused) {
-                      setIsSpeaking(false);
-                      setCurrentRow((prev) => prev + 1);
-                    }
-                  }
-                });
-              }
-            }
-          });
-        }
-      };
-
-      const togglePlayPause = () => {
-        if (isPlaying) {
-          if (isPaused) {
-            responsiveVoice.resume();
-            setIsPaused(false);
-          } else {
-            responsiveVoice.pause();
-            setIsPaused(true);
-          }
-        } else {
-          setIsPlaying(true);
-          setIsPaused(false);
-          speakRow(currentRow);
-        }
-      };
-
-      const refreshPage = () => {
-        window.location.reload();
-      };
-
-      const handleLetterClick = (letter) => {
-        setSelectedLetter(letter);
-        filterData(letter);
-        setLettersDisabled(true);
-      };
-
-      const filterData = (letter = null) => {
-        let filteredByLetter = [];
-        let filteredByRange = [];
-        if (letter) {
-          filteredByLetter = jsonData.filter((item) =>
-            item.targetValue?.toLowerCase().startsWith(letter)
-          );
-        }
-        if (+num1 && +num2 && +num1 > 0 && +num2 > 0 && +num1 < +num2) {
-          filteredByRange = jsonData.slice(+num1 - 1, +num2);
-        }
-        const combinedFilteredData = [...new Set([...filteredByLetter, ...filteredByRange])].filter(data => data.active);
-        setFilteredData(combinedFilteredData);
-        setData(combinedFilteredData.slice(0, pageSize));
-        setCurrentPage(1);
-      };
-
-      const handleSubmit = (event) => {
-        event.preventDefault();
-        if (+num1 <= 0 || +num2 <= 0) {
-          setFormError("Numbers must be greater than 0");
-        } else if (+num1 >= +num2) {
-          setFormError("First number must be less than the second number");
-        } else {
-          setFormError("");
-          filterData(selectedLetter);
-        }
-      };
-
-      return h("div",
-        { class: "space-y-6" },
-        h(
-          "form",
-          { onSubmit: handleSubmit, class: "flex flex-col items-center space-y-2" },
-          h("input", {
-            type: "number",
-            value: num1,
-            onInput: (e) => setNum1(e.target.value),
-            placeholder: "Number 1",
-            class: "w-24 px-2 py-1 border border-gray-400 rounded",
-          }),
-          h("input", {
-            type: "number",
-            value: num2,
-            onInput: (e) => setNum2(e.target.value),
-            placeholder: "Number 2",
-            class: "w-24 px-2 py-1 border border-gray-400 rounded",
-          }),
-          h(
-            "button",
-            {
-              type: "submit",
-              class: "px-4 py-2 bg-blue-500 text-white rounded",
-            },
-            "Apply"
-          ),
-          formError && h("div", { class: "text-red-500" }, formError)
-        ),
-        h(
-          "div",
-          { class: "scrollable" },
-          localData.map((item, index) =>
-            h("div", { class: "checkbox-item", key: index + 1 },
-              h("span", null, `[${index + 1}] ${item.targetValue}`),
-              h("input", {
-                type: "checkbox",
-                checked: item.active,
-                onChange: (e) => handleCheckboxChange(index + 1, item.learnableId, e.target.checked),
-              })
-            )
-          )
-        ),
-        h(
-          "div",
-          { class: "flex justify-center flex-wrap space-x-1" },
-          polishLetters.map((letter) =>
-            h(
-              "button",
-              {
-                class: `w-8 h-8 m-1 rounded ${selectedLetter === letter
-                  ? "bg-green-500 text-white"
-                  : "bg-blue-500 text-white"
-                  } ${lettersDisabled ? "opacity-50 cursor-not-allowed" : ""}`,
-                onClick: () => handleLetterClick(letter),
-                disabled: lettersDisabled,
-              },
-              letter
-            )
-          )
-        ),
-        h(
-          "div",
-          { class: "flex justify-center space-x-4" },
-          h(
-            "button",
-            {
-              class: `w-24 px-4 py-2 rounded ${isPlaying ? "bg-yellow-500" : "bg-green-500"} ${!selectedLetter && !filteredData.length
-                ? "opacity-50 cursor-not-allowed"
-                : "text-white"}`,
-              onClick: togglePlayPause,
-              disabled: !selectedLetter && !filteredData.length,
-            },
-            isPaused ? "Resume" : isPlaying ? "Pause" : "Play"
-          ),
-          h(
-            "button",
-            {
-              class: `w-24 px-4 py-2 rounded bg-red-500 ${!selectedLetter && !filteredData.length
-                ? "opacity-50 cursor-not-allowed"
-                : "text-white"}`,
-              onClick: refreshPage,
-              disabled: !selectedLetter && !filteredData.length,
-            },
-            "Stop"
-          )
-        ),
-        h(
-          "div",
-          { class: "flex justify-center" },
-          h(
-            "table",
-            { class: "min-w-full bg-white border border-gray-300" },
-            h(
-              "thead",
-              {},
-              h(
-                "tr",
-                {},
-                h(
-                  "th",
-                  { class: "px-6 py-3 border border-gray-300 text-center" },
-                  "Source Value"
-                ),
-                h(
-                  "th",
-                  { class: "px-6 py-3 border border-gray-300 text-center" },
-                  "Target Value"
-                )
-              )
-            ),
-            h(
-              "tbody",
-              {},
-              data.map((item, index) =>
-                h(
-                  "tr",
-                  { class: `${index === currentRow ? "bg-yellow-200" : ""}` },
-                  h(
-                    "td",
-                    { class: "px-6 py-3 border border-gray-300 text-center" },
-                    item.sourceValue
-                  ),
-                  h(
-                    "td",
-                    { class: "px-6 py-3 border border-gray-300 text-center" },
-                    item.targetValue
-                  )
-                )
-              )
-            )
-          )
-        )
-      );
-    }
-    render(h(Home, null), document.getElementById("app"));
-  </script>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center" x-data>
+  <div class="text-center w-full max-w-md mx-auto">
+    <form @submit.prevent="$store.learnables.handleSubmit()" class="flex flex-col items-center space-y-2">
+      <input type="number" x-model="$store.learnables.num1" placeholder="Number 1"
+        class="w-24 px-2 py-1 border border-gray-400 rounded">
+      <input type="number" x-model="$store.learnables.num2" placeholder="Number 2"
+        class="w-24 px-2 py-1 border border-gray-400 rounded">
+      <button type="submit" class="px-4 py-2 bg-blue-500 text-white rounded">Apply</button>
+      <div x-show="$store.learnables.formError" class="text-red-500" x-text="$store.learnables.formError"></div>
+    </form>
+    <div class="scrollable">
+      <template x-for="(item, index) in $store.learnables.localData" :key="item.learnableId">
+        <div class="checkbox-item">
+          <span x-text="`[${index + 1}] ${item.targetValue}`"></span>
+          <input type="checkbox" x-model="item.active">
+        </div>
+      </template>
+    </div>
+    <div class="flex justify-center flex-wrap space-x-1">
+      <template x-for="letter in $store.learnables.polishLetters" :key="letter">
+        <button
+          :class="{'bg-green-500': $store.learnables.selectedLetter === letter, 'bg-blue-500': $store.learnables.selectedLetter !== letter}"
+          class="w-8 h-8 m-1 rounded text-white" :disabled="$store.learnables.lettersDisabled"
+          @click="$store.learnables.handleLetterClick(letter)" x-text="letter"></button>
+      </template>
+    </div>
+    <div class="flex justify-center space-x-4">
+      <button :class="{'bg-yellow-500': $store.learnables.isPlaying, 'bg-green-500': !$store.learnables.isPlaying}"
+        class="w-24 px-4 py-2 rounded text-white"
+        :disabled="!$store.learnables.selectedLetter && !$store.learnables.filteredData.length"
+        @click="$store.learnables.togglePlayPause()"
+        x-text="$store.learnables.isPaused ? 'Resume' : $store.learnables.isPlaying ? 'Pause' : 'Play'"></button>
+      <button class="w-24 px-4 py-2 rounded bg-red-500 text-white"
+        :disabled="!$store.learnables.selectedLetter && !$store.learnables.filteredData.length"
+        @click="$store.learnables.refreshPage()">Stop</button>
+    </div>
+    <div class="flex justify-center">
+      <table class="min-w-full bg-white border border-gray-300">
+        <thead>
+          <tr>
+            <th class="px-6 py-3 border border-gray-300 text-center">Source Value</th>
+            <th class="px-6 py-3 border border-gray-300 text-center">Target Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-for="(item, index) in $store.learnables.data" :key="index">
+            <tr :class="{'bg-yellow-200': index === $store.learnables.currentRow}">
+              <td class="px-6 py-3 border border-gray-300 text-center" x-text="item.sourceValue"></td>
+              <td class="px-6 py-3 border border-gray-300 text-center" x-text="item.targetValue"></td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+  </div>
   <script src="https://code.responsivevoice.org/responsivevoice.js?key=JGPlbQgF"></script>
+  <script>
+    document.addEventListener('alpine:init', () => {
+      Alpine.store('learnables', {
+        data: [], 
+        jsonData: [], 
+        currentRow: 0, 
+        isPlaying: false, 
+        isSpeaking: false, 
+        isPaused: false, 
+        selectedLetter: '', 
+        lettersDisabled: false, 
+        filteredData: [], 
+        currentPage: 1, 
+        pageSize: 10, 
+        polishLetters: ["a", "ą", "b", "c", "ć", "d", "e", "ę", "f", "g", "h", "i", "j", "k", "l", "ł", "m", "n", "ń", "o", "ó", "p", "r", "s", "ś", "t", "u", "w", "y", "z", "ź", "ż"], 
+        num1: '', 
+        num2: '', 
+        formError: '', 
+        localData: [], 
+        init() {
+          this.loadLocalData();
+          Alpine.effect(() => {
+            localStorage.setItem("learnablesData", JSON.stringify(this.localData));
+            this.checkRowAndPage();
+          });
+        },
+        async loadLocalData() {
+          const storedData = localStorage.getItem("learnablesData");
+          if (storedData) {
+            this.jsonData = JSON.parse(storedData);
+            this.localData = this.jsonData;
+          } else {
+            const response = await fetch("learnables.json");
+            const jsonData = await response.json();
+            localStorage.setItem("learnablesData", JSON.stringify(jsonData));
+            this.jsonData = jsonData;
+            this.localData = jsonData;
+          }
+        },
+        handleLetterClick(letter) { this.selectedLetter = letter; this.filterData(); this.lettersDisabled = true; },
+        filterData() {
+          let filteredByLetter = [];
+          let filteredByRange = [];
+          if (this.selectedLetter) {
+            filteredByLetter = this.jsonData.filter(item => item.targetValue.toLowerCase().startsWith(this.selectedLetter.toLowerCase()));
+          }
+          if (this.num1 && this.num2 && +this.num1 <= +this.num2) {
+            filteredByRange = this.jsonData.slice(+this.num1 - 1, +this.num2);
+          }
+          if (filteredByLetter.length > 0 && filteredByRange.length > 0) {
+            this.filteredData = filteredByLetter.filter(item => filteredByRange.includes(item));
+          } else if (filteredByLetter.length > 0) {
+            this.filteredData = filteredByLetter;
+          } else if (filteredByRange.length > 0) {
+            this.filteredData = filteredByRange;
+          } else {
+            this.filteredData = this.jsonData;
+          }
+          this.filteredData = this.filteredData.filter(data => data.active);
+          this.data = this.filteredData.slice(0, this.pageSize);
+          this.currentPage = 1;
+          this.currentRow = 0;
+        },
+        handleSubmit() {
+          if (+this.num1 <= 0 || +this.num2 <= 0) {
+            this.formError = "Numbers must be greater than 0";
+          } else if (+this.num1 >= +this.num2) {
+            this.formError = "First number must be less than the second number";
+          } else {
+            this.formError = "";
+            this.filterData();
+          }
+        },
+        speakRow(index) {
+          const item = this.data[index];
+          if (item && !this.isSpeaking && this.isPlaying && !this.isPaused) {
+            this.isSpeaking = true;
+            responsiveVoice.speak(item.sourceValue, "UK English Male", {
+              onend: () => {
+                if (!this.isPaused) {
+                  responsiveVoice.speak(item.targetValue, "Polish Female", {
+                    onend: () => {
+                      if (!this.isPaused) {
+                        this.isSpeaking = false;
+                        this.currentRow++;
+                        this.checkRowAndPage();
+                      }
+                    }
+                  });
+                }
+              }
+            });
+          }
+        },
+        checkRowAndPage() {
+          if (this.isPlaying && !this.isSpeaking && !this.isPaused) {
+            if (this.currentRow < this.data.length) {
+              this.speakRow(this.currentRow);
+            } else if (this.currentPage * this.pageSize >= this.filteredData.length) {
+              this.currentPage = 1;
+              this.currentRow = 0;
+              this.data = this.filteredData.slice(0, this.pageSize);
+              this.speakRow(this.currentRow);
+            } else {
+              this.fetchNextPage();
+            }
+          }
+        },
+        fetchNextPage() {
+          this.currentPage++;
+          const start = (this.currentPage - 1) * this.pageSize;
+          const nextPageData = this.filteredData.slice(start, start + this.pageSize);
+          if (nextPageData.length > 0) {
+            this.data = nextPageData;
+            this.currentRow = 0;
+            this.speakRow(this.currentRow);
+          } else {
+            this.currentPage = 1;
+            this.currentRow = 0;
+            this.data = this.filteredData.slice(0, this.pageSize);
+            this.speakRow(this.currentRow);
+          }
+        },
+        togglePlayPause() {
+          if (this.isPlaying) {
+            if (this.isPaused) {
+              responsiveVoice.resume();
+              this.isPaused = false;
+            } else {
+              responsiveVoice.pause();
+              this.isPaused = true;
+            }
+          } else {
+            this.isPlaying = true;
+            this.isPaused = false;
+            this.speakRow(this.currentRow);
+          }
+        },
+        refreshPage() {
+          window.location.reload();
+        }
+      });
+    });
+  </script>
 </body>
+
+</html>
